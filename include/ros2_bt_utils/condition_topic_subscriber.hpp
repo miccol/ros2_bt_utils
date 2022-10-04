@@ -41,86 +41,83 @@ using std::placeholders::_1;
 namespace ros2_bt_utils
 {
 
-   template <typename ROSTopicT>
+template<typename ROSTopicT>
+class ConditionTopicSubscriber : public BT::ConditionNode
+{
+protected:
+  using ROSTopicTPtr = typename ROSTopicT::SharedPtr;
 
-   class ConditionTopicSubscriber : public BT::ConditionNode
-   {
-  protected:
-      using ROSTopicTPtr = typename ROSTopicT::SharedPtr;
+  using ROSSTopicSubscription = typename rclcpp::Subscription<ROSTopicT>::SharedPtr;
 
-      using ROSSTopicSubscription = typename rclcpp::Subscription<ROSTopicT>::SharedPtr;
+public:
+  ConditionTopicSubscriber(
+    const std::string & name, const BT::NodeConfiguration & config,
+    const std::string & topic_name)
+  : BT::ConditionNode(name, config), topic_name_{topic_name}
+  {
+    ros_node_ = ros2_bt_utils::ROSNode();
+    rclcpp::spin_some(ros_node_);
+    server_attached_ = attachServer();
+  }
 
-  public:
-      ConditionTopicSubscriber(const std::string &name, const BT::NodeConfiguration &config,
-                               const std::string &topic_name)
-          : BT::ConditionNode(name, config), topic_name_{topic_name}
-      {
-         ros_node_ = ros2_bt_utils::ROSNode();
-         rclcpp::spin_some(ros_node_);
-         server_attached_ = attachServer();
-      }
+  bool attachServer()
+  {
+    if (!ros_node_) {
+      RCLCPP_ERROR(
+        ros_node_->get_logger(), "Cannot attach Server. Condition %s Will fail",
+        name().c_str());
+      return false;
+    }
+    subscription_ = ros_node_->create_subscription<ROSTopicT>(
+      topic_name_.c_str(), 10,
+      std::bind(&ConditionTopicSubscriber::topic_callback, this, _1));
+    return true;
+  }
 
-      bool attachServer()
-      {
-         if (!ros_node_)
-         {
-            RCLCPP_ERROR(ros_node_->get_logger(), "Cannot attach Server. Condition %s Will fail",
-                         name().c_str());
-            return false;
-         }
-         subscription_ = ros_node_->create_subscription<ROSTopicT>(
-             topic_name_.c_str(), 10,
-             std::bind(&ConditionTopicSubscriber::topic_callback, this, _1));
-         return true;
-      }
+  BT::NodeStatus tick() override
+  {
+    rclcpp::spin_some(ros_node_);
 
-      BT::NodeStatus tick() override
-      {
-         rclcpp::spin_some(ros_node_);
+    if (!server_attached_) {
+      RCLCPP_ERROR(
+        ros_node_->get_logger(), "Subscriber non attached. Condition %s Failing",
+        name().c_str());
+      return BT::NodeStatus::FAILURE;
+    }
+    if (has_message_) {
+      return elaborateMessageAndReturn(last_message_);
+    } else {
+      RCLCPP_WARN(
+        ros_node_->get_logger(),
+        "Message not published yet on the Topic %s. Condition %s returning the value of "
+        "boundaryConditionStatus()",
+        topic_name_.c_str(), name().c_str());
+      return boundaryConditionStatus();
+    }
+  }
 
-         if (!server_attached_)
-         {
-            RCLCPP_ERROR(ros_node_->get_logger(), "Subscriber non attached. Condition %s Failing",
-                         name().c_str());
-            return BT::NodeStatus::FAILURE;
-         }
-         if (has_message_)
-         {
-            return elaborateMessageAndReturn(last_message_);
-         }
-         else
-         {
-            RCLCPP_WARN(
-                ros_node_->get_logger(),
-                "Message not published yet on the Topic %s. Condition %s returning the value of "
-                "boundaryConditionStatus()",
-                topic_name_.c_str(), name().c_str());
-            return boundaryConditionStatus();
-         }
-      }
+protected:
+  virtual BT::NodeStatus elaborateMessageAndReturn(const ROSTopicT msg) = 0;
+  virtual BT::NodeStatus boundaryConditionStatus() = 0;
+  /* The BT node may be ticked before the message is written.
+       In that case, the node returns the assumed BT::NodeStatus.
+       If you need to wait for the actrual message to be written,
+       this should not be done inside a condition node! */
 
-  protected:
-      virtual BT::NodeStatus elaborateMessageAndReturn(const ROSTopicT msg) = 0;
-      virtual BT::NodeStatus boundaryConditionStatus() = 0;
-      /* The BT node may be ticked before the message is written.
-         In that case, the node returns the assumed BT::NodeStatus.
-         If you need to wait for the actrual message to be written,
-         this should not be done inside a condition node! */
+private:
+  const std::string topic_name_;
+  bool server_attached_{false};
+  rclcpp::Node::SharedPtr ros_node_;
+  ROSTopicT last_message_;
+  ROSSTopicSubscription subscription_;
+  std::atomic<bool> has_message_{false};
 
-  private:
-      const std::string topic_name_;
-      bool server_attached_{false};
-      rclcpp::Node::SharedPtr ros_node_;
-      ROSTopicT last_message_;
-      ROSSTopicSubscription subscription_;
-      std::atomic<bool> has_message_{false};
-
-      void topic_callback(const ROSTopicTPtr msg)
-      {
-         has_message_ = true;  // a better way to do that?
-         last_message_ = *msg;
-      }
-   };
+  void topic_callback(const ROSTopicTPtr msg)
+  {
+    has_message_ = true;       // a better way to do that?
+    last_message_ = *msg;
+  }
+};
 
 }  // namespace ros2_bt_utils
 

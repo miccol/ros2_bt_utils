@@ -40,85 +40,81 @@ using namespace std::chrono_literals;
 namespace ros2_bt_utils
 {
 
-   template <typename ROSServiceT>
-   class ConditionROSServiceClient : public BT::ConditionNode
-   {
-  protected:
-      using ServiceRequest = typename ROSServiceT::Request;
-      using ServiceRequestPtr = typename ROSServiceT::Request::SharedPtr;
-      using ServiceResponse = typename ROSServiceT::Response::SharedPtr;
-      using ServiceClient = typename rclcpp::Client<ROSServiceT>::SharedPtr;
+template<typename ROSServiceT>
+class ConditionROSServiceClient : public BT::ConditionNode
+{
+protected:
+  using ServiceRequest = typename ROSServiceT::Request;
+  using ServiceRequestPtr = typename ROSServiceT::Request::SharedPtr;
+  using ServiceResponse = typename ROSServiceT::Response::SharedPtr;
+  using ServiceClient = typename rclcpp::Client<ROSServiceT>::SharedPtr;
 
-  public:
-      ConditionROSServiceClient(const std::string &name, const BT::NodeConfiguration &config,
-                                const std::string &service_name)
-          : BT::ConditionNode(name, config), service_name_{service_name}
-      {
-         ros_node_ = ros2_bt_utils::ROSNode();
-         server_attached_ = attachServer();
+public:
+  ConditionROSServiceClient(
+    const std::string & name, const BT::NodeConfiguration & config,
+    const std::string & service_name)
+  : BT::ConditionNode(name, config), service_name_{service_name}
+  {
+    ros_node_ = ros2_bt_utils::ROSNode();
+    server_attached_ = attachServer();
+  }
+
+private:
+  bool attachServer()
+  {
+    if (!ros_node_) {
+      return false;
+    }
+    service_client_ = ros_node_->create_client<ROSServiceT>(service_name_.c_str());
+
+    while (!service_client_->wait_for_service()) {
+      if (!rclcpp::ok()) {
+        RCLCPP_ERROR(
+          ros_node_->get_logger(),
+          "Interrupted while waiting for the service. Exiting.");
+        return false;
       }
+      RCLCPP_INFO(ros_node_->get_logger(), "service not available, waiting again...");
+    }
+    return true;
+  }
 
-  private:
-      bool attachServer()
-      {
-         if (!ros_node_)
-         {
-            return false;
-         }
-         service_client_ = ros_node_->create_client<ROSServiceT>(service_name_.c_str());
+  BT::NodeStatus tick() override
+  {
+    rclcpp::spin_some(ros_node_);
+    if (!server_attached_) {
+      RCLCPP_ERROR(ros_node_->get_logger(), "Server non attached. Condition Failing");
+      return BT::NodeStatus::FAILURE;
+    }
 
-         while (!service_client_->wait_for_service())
-         {
-            if (!rclcpp::ok())
-            {
-               RCLCPP_ERROR(ros_node_->get_logger(),
-                            "Interrupted while waiting for the service. Exiting.");
-               return false;
-            }
-            RCLCPP_INFO(ros_node_->get_logger(), "service not available, waiting again...");
-         }
-         return true;
-      }
+    if (!ros_node_) {
+      return BT::NodeStatus::FAILURE;
+    }
+    auto result = service_client_->async_send_request(computeRequest());
 
-      BT::NodeStatus tick() override
-      {
-         rclcpp::spin_some(ros_node_);
-         if (!server_attached_)
-         {
-            RCLCPP_ERROR(ros_node_->get_logger(), "Server non attached. Condition Failing");
-            return BT::NodeStatus::FAILURE;
-         }
+    if (rclcpp::spin_until_future_complete(ros_node_, result) ==
+      rclcpp::FutureReturnCode::SUCCESS)
+    {
+      return elaborateResponseAndReturn(result.get());
+    } else {
+      RCLCPP_ERROR(
+        ros_node_->get_logger(), "Failed to call service %s",
+        service_name_.c_str());
+    }
+    return BT::NodeStatus::FAILURE;
+  }
 
-         if (!ros_node_)
-         {
-            return BT::NodeStatus::FAILURE;
-         }
-         auto result = service_client_->async_send_request(computeRequest());
+protected:
+  virtual BT::NodeStatus elaborateResponseAndReturn(const ServiceResponse response) = 0;
+  virtual ServiceRequestPtr computeRequest() = 0;
 
-         if (rclcpp::spin_until_future_complete(ros_node_, result) ==
-             rclcpp::FutureReturnCode::SUCCESS)
-         {
-            return elaborateResponseAndReturn(result.get());
-         }
-         else
-         {
-            RCLCPP_ERROR(ros_node_->get_logger(), "Failed to call service %s",
-                         service_name_.c_str());
-         }
-         return BT::NodeStatus::FAILURE;
-      }
-
-  protected:
-      virtual BT::NodeStatus elaborateResponseAndReturn(const ServiceResponse response) = 0;
-      virtual ServiceRequestPtr computeRequest() = 0;
-
-  private:
-      std::string service_name_;
-      bool server_attached_{false};
-      ServiceClient service_client_;
-      rclcpp::Node::SharedPtr ros_node_;
-      ServiceRequest service_request_;
-   };
+private:
+  std::string service_name_;
+  bool server_attached_{false};
+  ServiceClient service_client_;
+  rclcpp::Node::SharedPtr ros_node_;
+  ServiceRequest service_request_;
+};
 
 }  // namespace ros2_bt_utils
 

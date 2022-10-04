@@ -34,14 +34,13 @@
 namespace ros2_bt_utils
 {
 
-   rclcpp::Node::SharedPtr ROSNode()
-   {
-      static rclcpp::Node::SharedPtr node;
-      if (!node)
-      {
-         node = rclcpp::Node::make_shared("BT");
-      }
-      return node;
-   }
+rclcpp::Node::SharedPtr ROSNode()
+{
+  static rclcpp::Node::SharedPtr node;
+  if (!node) {
+    node = rclcpp::Node::make_shared("BT");
+  }
+  return node;
+}
 
 }  // namespace ros2_bt_utils

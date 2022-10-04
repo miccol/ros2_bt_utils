@@ -35,7 +35,7 @@
 namespace ros2_bt_utils
 {
 
-   rclcpp::Node::SharedPtr ROSNode();
+  rclcpp::Node::SharedPtr ROSNode();
 
 }  // namespace ros2_bt_utils
 

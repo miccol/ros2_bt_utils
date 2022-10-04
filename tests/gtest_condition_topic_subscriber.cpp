@@ -34,144 +34,145 @@
 
 class ConditionTopicSubscriberTest : public ::testing::Test
 {
-   protected:
-   std::shared_ptr<rclcpp::Node> node;
-   void SetUp() override
-   {
-      node = std::make_shared<rclcpp::Node>("action_ros_action_client_test");
-      spinner = std::thread([&]() { rclcpp::spin(node); });
-      spinner.detach();
-      rclcpp::PublisherOptions po;
-      po.use_intra_process_comm = rclcpp::IntraProcessSetting::Disable;
-      bool_publisher = node->create_publisher<std_msgs::msg::Bool>("/topic_bool", 1);
-      string_publisher = node->create_publisher<std_msgs::msg::String>("/topic_string", 1);
-      int_publisher = node->create_publisher<std_msgs::msg::Int8>("/topic_int8", 1);
-   }
-   void TearDown() override
-   {
-      // spinner.join();
-      //  node.reset();
-   }
+protected:
+  std::shared_ptr<rclcpp::Node> node;
+  void SetUp() override
+  {
+    node = std::make_shared<rclcpp::Node>("action_ros_action_client_test");
+    spinner = std::thread([&]() {rclcpp::spin(node);});
+    spinner.detach();
+    rclcpp::PublisherOptions po;
+    po.use_intra_process_comm = rclcpp::IntraProcessSetting::Disable;
+    bool_publisher = node->create_publisher<std_msgs::msg::Bool>("/topic_bool", 1);
+    string_publisher = node->create_publisher<std_msgs::msg::String>("/topic_string", 1);
+    int_publisher = node->create_publisher<std_msgs::msg::Int8>("/topic_int8", 1);
+  }
+  void TearDown() override
+  {
+    // spinner.join();
+    //  node.reset();
+  }
 
-   void publish_bool(const bool value)
-   {
-      std_msgs::msg::Bool msg;
-      msg.data = value;
-      bool_publisher->publish(msg);
-   }
-   void publish_string(const std::string value)
-   {
-      std_msgs::msg::String msg;
-      msg.data = value;
-      string_publisher->publish(msg);
-   }
-   void publish_int8(const int8_t value)
-   {
-      std_msgs::msg::Int8 msg;
-      msg.data = value;
-      int_publisher->publish(msg);
-   }
+  void publish_bool(const bool value)
+  {
+    std_msgs::msg::Bool msg;
+    msg.data = value;
+    bool_publisher->publish(msg);
+  }
+  void publish_string(const std::string value)
+  {
+    std_msgs::msg::String msg;
+    msg.data = value;
+    string_publisher->publish(msg);
+  }
+  void publish_int8(const int8_t value)
+  {
+    std_msgs::msg::Int8 msg;
+    msg.data = value;
+    int_publisher->publish(msg);
+  }
 
-   private:
-   std::thread spinner;
-   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr bool_publisher;
-   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr string_publisher;
-   rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher;
+private:
+  std::thread spinner;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr bool_publisher;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr string_publisher;
+  rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr int_publisher;
 };
 
 class ConditionReadBool : public ros2_bt_utils::ConditionTopicSubscriber<std_msgs::msg::Bool>
 {
-   public:
-   ConditionReadBool(const std::string &name, const BT::NodeConfiguration &config)
-       : ConditionTopicSubscriber(name, config, "/topic_bool")
-   {
-   }
+public:
+  ConditionReadBool(const std::string & name, const BT::NodeConfiguration & config)
+  : ConditionTopicSubscriber(name, config, "/topic_bool")
+  {
+  }
 
-   BT::NodeStatus elaborateMessageAndReturn(std_msgs::msg::Bool msg) override
-   {
-      // as simple as it may get
-      return msg.data ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
-   }
+  BT::NodeStatus elaborateMessageAndReturn(std_msgs::msg::Bool msg) override
+  {
+    // as simple as it may get
+    return msg.data ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+  }
 
-   BT::NodeStatus boundaryConditionStatus() override
-   {
-      // if no message has arrived. I assume it is false
-      return BT::NodeStatus::FAILURE;
-   }
+  BT::NodeStatus boundaryConditionStatus() override
+  {
+    // if no message has arrived. I assume it is false
+    return BT::NodeStatus::FAILURE;
+  }
 
-   static BT::PortsList providedPorts() { return {}; }
+  static BT::PortsList providedPorts() {return {};}
 };
 
 class ConditionReadInt8 : public ros2_bt_utils::ConditionTopicSubscriber<std_msgs::msg::Int8>
 {
-   public:
-   ConditionReadInt8(const std::string &name, const BT::NodeConfiguration &config)
-       : ConditionTopicSubscriber(name, config, "/topic_int8")
-   {
-   }
+public:
+  ConditionReadInt8(const std::string & name, const BT::NodeConfiguration & config)
+  : ConditionTopicSubscriber(name, config, "/topic_int8")
+  {
+  }
 
-   BT::NodeStatus elaborateMessageAndReturn(std_msgs::msg::Int8 msg) override
-   {
-      read_value_ = msg.data;
-      return BT::NodeStatus::SUCCESS;
-   }
+  BT::NodeStatus elaborateMessageAndReturn(std_msgs::msg::Int8 msg) override
+  {
+    read_value_ = msg.data;
+    return BT::NodeStatus::SUCCESS;
+  }
 
-   BT::NodeStatus boundaryConditionStatus() override
-   {
-      // if no message has arrived. I assume it is false
-      read_value_ = -1;
-      return BT::NodeStatus::FAILURE;
-   }
+  BT::NodeStatus boundaryConditionStatus() override
+  {
+    // if no message has arrived. I assume it is false
+    read_value_ = -1;
+    return BT::NodeStatus::FAILURE;
+  }
 
-   int8_t read_value() const { return read_value_; }
+  int8_t read_value() const {return read_value_;}
 
-   static BT::PortsList providedPorts() { return {}; }
+  static BT::PortsList providedPorts() {return {};}
 
-   private:
-   mutable std::atomic<int8_t> read_value_;
+private:
+  mutable std::atomic<int8_t> read_value_;
 };
 
 class ConditionReadString : public ros2_bt_utils::ConditionTopicSubscriber<std_msgs::msg::String>
 {
-   public:
-   ConditionReadString(const std::string &name, const BT::NodeConfiguration &config)
-       : ConditionTopicSubscriber(name, config, "/topic_string")
-   {
-   }
+public:
+  ConditionReadString(const std::string & name, const BT::NodeConfiguration & config)
+  : ConditionTopicSubscriber(name, config, "/topic_string")
+  {
+  }
 
-   BT::NodeStatus elaborateMessageAndReturn(std_msgs::msg::String msg) override
-   {
-      const std::lock_guard<std::mutex> lock(read_value_mutex_);
+  BT::NodeStatus elaborateMessageAndReturn(std_msgs::msg::String msg) override
+  {
+    const std::lock_guard<std::mutex> lock(read_value_mutex_);
 
-      read_value_ = msg.data;
-      return BT::NodeStatus::SUCCESS;
-   }
+    read_value_ = msg.data;
+    return BT::NodeStatus::SUCCESS;
+  }
 
-   BT::NodeStatus boundaryConditionStatus() override
-   {
-      // if no message has arrived. I assume it is false
-      const std::lock_guard<std::mutex> lock(read_value_mutex_);
+  BT::NodeStatus boundaryConditionStatus() override
+  {
+    // if no message has arrived. I assume it is false
+    const std::lock_guard<std::mutex> lock(read_value_mutex_);
 
-      read_value_ = "boundary value";
-      return BT::NodeStatus::FAILURE;
-   }
+    read_value_ = "boundary value";
+    return BT::NodeStatus::FAILURE;
+  }
 
-   std::string read_value() const
-   {
-      const std::lock_guard<std::mutex> lock(read_value_mutex_);
-      return read_value_;
-   }
+  std::string read_value() const
+  {
+    const std::lock_guard<std::mutex> lock(read_value_mutex_);
+    return read_value_;
+  }
 
-   static BT::PortsList providedPorts() { return {}; }
+  static BT::PortsList providedPorts() {return {};}
 
-   private:
-   std::string read_value_;
-   mutable std::mutex read_value_mutex_;  // cannot atomic string
+private:
+  std::string read_value_;
+  mutable std::mutex read_value_mutex_;   // cannot atomic string
 };
 
 TEST_F(ConditionTopicSubscriberTest, TestBool)
 {
-   static const char *xml_tree_condition_bool = R"(
+  static const char * xml_tree_condition_bool =
+    R"(
 <?xml version="1.0"?>
 <root main_tree_to_execute="BehaviorTree">
     <!-- ////////// -->
@@ -181,25 +182,26 @@ TEST_F(ConditionTopicSubscriberTest, TestBool)
 </root>
  )";
 
-   BT::BehaviorTreeFactory factory;
-   factory.registerNodeType<ConditionReadBool>("ConditionReadBool");
-   auto blackboard = BT::Blackboard::create();
-   auto tree = factory.createTreeFromText(xml_tree_condition_bool, blackboard);
-   auto condition = dynamic_cast<ConditionReadBool *>(tree.rootNode());
-   ASSERT_TRUE(condition != nullptr);  // make sure is correct
-   auto status = condition->tick();
-   ASSERT_EQ(status, BT::NodeStatus::FAILURE);
-   publish_bool(true);
-   status = condition->tick();
-   ASSERT_EQ(status, BT::NodeStatus::SUCCESS);
-   publish_bool(false);
-   status = condition->tick();
-   ASSERT_EQ(status, BT::NodeStatus::FAILURE);
+  BT::BehaviorTreeFactory factory;
+  factory.registerNodeType<ConditionReadBool>("ConditionReadBool");
+  auto blackboard = BT::Blackboard::create();
+  auto tree = factory.createTreeFromText(xml_tree_condition_bool, blackboard);
+  auto condition = dynamic_cast<ConditionReadBool *>(tree.rootNode());
+  ASSERT_TRUE(condition != nullptr);   // make sure is correct
+  auto status = condition->tick();
+  ASSERT_EQ(status, BT::NodeStatus::FAILURE);
+  publish_bool(true);
+  status = condition->tick();
+  ASSERT_EQ(status, BT::NodeStatus::SUCCESS);
+  publish_bool(false);
+  status = condition->tick();
+  ASSERT_EQ(status, BT::NodeStatus::FAILURE);
 }
 
 TEST_F(ConditionTopicSubscriberTest, TestString)
 {
-   static const char *xml_tree_condition_string = R"(
+  static const char * xml_tree_condition_string =
+    R"(
 <?xml version="1.0"?>
 <root main_tree_to_execute="BehaviorTree">
     <!-- ////////// -->
@@ -209,31 +211,32 @@ TEST_F(ConditionTopicSubscriberTest, TestString)
 </root>
  )";
 
-   BT::BehaviorTreeFactory factory;
-   factory.registerNodeType<ConditionReadString>("ConditionReadString");
-   auto blackboard = BT::Blackboard::create();
-   auto tree = factory.createTreeFromText(xml_tree_condition_string, blackboard);
-   auto condition = dynamic_cast<ConditionReadString *>(tree.rootNode());
-   ASSERT_TRUE(condition != nullptr);  // make sure is correct
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), "boundary value");
-   publish_string("I");
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), "I");
-   publish_string("am");
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), "am");
-   publish_string("batman");
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), "batman");
-   publish_string("no I am not");
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), "no I am not");
+  BT::BehaviorTreeFactory factory;
+  factory.registerNodeType<ConditionReadString>("ConditionReadString");
+  auto blackboard = BT::Blackboard::create();
+  auto tree = factory.createTreeFromText(xml_tree_condition_string, blackboard);
+  auto condition = dynamic_cast<ConditionReadString *>(tree.rootNode());
+  ASSERT_TRUE(condition != nullptr);   // make sure is correct
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), "boundary value");
+  publish_string("I");
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), "I");
+  publish_string("am");
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), "am");
+  publish_string("batman");
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), "batman");
+  publish_string("no I am not");
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), "no I am not");
 }
 
 TEST_F(ConditionTopicSubscriberTest, TestInt8)
 {
-   static const char *xml_tree_condition_int = R"(
+  static const char * xml_tree_condition_int =
+    R"(
 <?xml version="1.0"?>
 <root main_tree_to_execute="BehaviorTree">
     <!-- ////////// -->
@@ -243,26 +246,26 @@ TEST_F(ConditionTopicSubscriberTest, TestInt8)
 </root>
  )";
 
-   BT::BehaviorTreeFactory factory;
-   factory.registerNodeType<ConditionReadInt8>("ConditionReadInt8");
-   auto blackboard = BT::Blackboard::create();
-   auto tree = factory.createTreeFromText(xml_tree_condition_int, blackboard);
-   auto condition = dynamic_cast<ConditionReadInt8 *>(tree.rootNode());
-   ASSERT_TRUE(condition != nullptr);  // make sure is correct
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), -1);
-   publish_int8(0);
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), 0);
-   publish_int8(1);
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), 1);
-   publish_int8(-1);
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), -1);
-   publish_int8(100);
-   condition->tick();
-   ASSERT_EQ(condition->read_value(), 100);
+  BT::BehaviorTreeFactory factory;
+  factory.registerNodeType<ConditionReadInt8>("ConditionReadInt8");
+  auto blackboard = BT::Blackboard::create();
+  auto tree = factory.createTreeFromText(xml_tree_condition_int, blackboard);
+  auto condition = dynamic_cast<ConditionReadInt8 *>(tree.rootNode());
+  ASSERT_TRUE(condition != nullptr);   // make sure is correct
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), -1);
+  publish_int8(0);
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), 0);
+  publish_int8(1);
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), 1);
+  publish_int8(-1);
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), -1);
+  publish_int8(100);
+  condition->tick();
+  ASSERT_EQ(condition->read_value(), 100);
 }
 
 // int main(int argc, char **argv)
