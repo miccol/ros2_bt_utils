@@ -74,7 +74,7 @@ namespace ros2_bt_utils
       }
 
   protected:
-        /// method invoked by the BT ath the first tick.
+      /// method invoked by the BT ath the first tick.
       BT::NodeStatus onStart() override
       {
          action_result_.code =

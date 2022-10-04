@@ -32,10 +32,11 @@
 
 #include <rclcpp/rclcpp.hpp>
 
-namespace ros2_bt_utils {
+namespace ros2_bt_utils
+{
 
-rclcpp::Node::SharedPtr ROSNode();
+   rclcpp::Node::SharedPtr ROSNode();
 
-} // namespace ros2_bt_utils
+}  // namespace ros2_bt_utils
 
 #endif

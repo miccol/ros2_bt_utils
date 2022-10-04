@@ -27,17 +27,21 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include <rclcpp/rclcpp.hpp>
 #include <ros2_bt_utils/ros2_utils.h>
 
-namespace ros2_bt_utils {
+#include <rclcpp/rclcpp.hpp>
 
-rclcpp::Node::SharedPtr ROSNode() {
-  static rclcpp::Node::SharedPtr node;
-  if (!node) {
-    node = rclcpp::Node::make_shared("BT");
-  }
-  return node;
-}
+namespace ros2_bt_utils
+{
 
-} // namespace ros2_bt_utils
+   rclcpp::Node::SharedPtr ROSNode()
+   {
+      static rclcpp::Node::SharedPtr node;
+      if (!node)
+      {
+         node = rclcpp::Node::make_shared("BT");
+      }
+      return node;
+   }
+
+}  // namespace ros2_bt_utils
