@@ -27,6 +27,7 @@ if(ament_cmake_FOUND AND BUILD_TESTING)
     )
     target_include_directories(${LIBRARY_NAME}_test PRIVATE gtest/include)
     include_directories($<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty>)
+    ament_add_gtest_test(${LIBRARY_NAME}_test)
 endif()
 
 # install(
