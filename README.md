@@ -1,3 +1,9 @@
+ [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+
+# ROS2 BT Utils
+
+Package containing the base classes (virtual and templates) to ease the development Behavior Trees leaf nodes in ROS2, using [BehaviorTree.CPP](https://github.com/BehaviorTree/BehaviorTree.CPP).
 
 
 # Dependencies
@@ -6,9 +12,6 @@
 - [BehaviorTree.CPP](https://github.com/BehaviorTree/BehaviorTree.CPP)
 
 
-# ROS2 BT Utils
-
-Package containing the base classes (virtual and templates) to ease the development Behavior Trees leaf nodes in ROS2, using [BehaviorTree.CPP](https://github.com/BehaviorTree/BehaviorTree.CPP).
 The classes contain the source code needed to set up the client side of ROS2's [Actions](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Actions/Understanding-ROS2-Actions.html), [Services](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Services/Understanding-ROS2-Services.html), and subscribe to a [Topic](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Topics/Understanding-ROS2-Topics.html):
 
 - `ActionROSActionClient(const std::string &name, const BT::NodeConfiguration &config,
