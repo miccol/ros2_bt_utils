@@ -7,11 +7,23 @@
 Package containing the base classes (virtual and templates) to ease the development Behavior Trees leaf nodes in ROS2, using [BehaviorTree.CPP](https://github.com/BehaviorTree/BehaviorTree.CPP).
 
 
-# Dependencies
+## Dependencies
 
 - [ROS2 (Humble)](http://docs.ros.org/en/humble/)
 - [BehaviorTree.CPP](https://github.com/BehaviorTree/BehaviorTree.CPP)
 
+## Installation
+
+Clone this repo in your ROS2 workspace
+```bash 
+ cd <your-ws-src>
+ git clone https://github.com/miccol/bt_use_cases
+```
+Build
+```bash 
+ cd <your-ws>
+ colcon build
+```
 
 The classes contain the source code needed to set up the client side of ROS2's [Actions](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Actions/Understanding-ROS2-Actions.html), [Services](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Services/Understanding-ROS2-Services.html), and subscribe to a [Topic](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Topics/Understanding-ROS2-Topics.html):
 
