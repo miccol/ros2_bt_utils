@@ -106,7 +106,9 @@ protected:
   void onHalted() override
   {
     RCLCPP_INFO(ros_node_->get_logger(), "Canceling goal");
-    action_client_->async_cancel_goal(future_goal_handle_.get());
+    //action_client_->async_cancel_goal(future_goal_handle_.get()); // waiting https://github.com/ros2/rclcpp/issues/747
+    action_client_->async_cancel_all_goals();
+    RCLCPP_INFO(ros_node_->get_logger(), "Goal Canceled");
     setStatus(BT::NodeStatus::IDLE);
   }
 
