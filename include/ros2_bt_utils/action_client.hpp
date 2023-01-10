@@ -164,7 +164,7 @@ private:
     }
     action_client_ =
       rclcpp_action::create_client<ROSActionT>(ros_node_, ros_action_name_.c_str());
-    if (!action_client_->wait_for_action_server(std::chrono::seconds(30))) {
+    if (!action_client_->wait_for_action_server(std::chrono::seconds(60))) {
       auto node = ros2_bt_utils::ROSNode();
       RCLCPP_ERROR(
         ros_node_->get_logger(), "Timed out connecting to ROS Action Server %s",
