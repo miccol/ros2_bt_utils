@@ -89,8 +89,10 @@ protected:
       std::bind(&ActionROSActionClient<ROSActionT>::responseCallback, this, _1);
     goal_options.feedback_callback =
       std::bind(&ActionROSActionClient<ROSActionT>::feedbackCallback, this, _1, _2);
-    future_goal_handle_ = action_client_->async_send_goal(computeGoal(), goal_options);
-
+    //future_goal_handle_ = action_client_->async_send_goal(computeGoal(), goal_options);
+       future_goal_handle_ =  std::make_shared<
+      std::shared_future<typename rclcpp_action::ClientGoalHandle<ROSActionT>::SharedPtr>>(
+      action_client_->async_send_goal(computeGoal(), goal_options));
     if (goal_rejected_) {
       RCLCPP_WARN(
         ros_node_->get_logger(),
@@ -105,8 +107,27 @@ protected:
 
   void onHalted() override
   {
+
+    auto goal_handle = future_goal_handle_->get();
+    bool goal_executing = goal_handle->get_status() == action_msgs::msg::GoalStatus::STATUS_ACCEPTED || goal_handle->get_status()  == action_msgs::msg::GoalStatus::STATUS_ACCEPTED;
+    if(!goal_handle || !goal_executing)
+    {
+      RCLCPP_INFO(ros_node_->get_logger(), "No need to cancel goal");
+      setStatus(BT::NodeStatus::IDLE);
+      return;
+    }
     RCLCPP_INFO(ros_node_->get_logger(), "Canceling goal");
-    action_client_->async_cancel_goal(future_goal_handle_.get());
+    auto cancel_result_future  = action_client_->async_cancel_goal(future_goal_handle_->get()); // WIP
+    //action_client_->async_cancel_all_goals();
+     if (rclcpp::spin_until_future_complete(ros_node_, cancel_result_future, std::chrono::seconds(5)) !=
+        rclcpp::FutureReturnCode::SUCCESS)
+      {
+        RCLCPP_ERROR(
+          ros_node_->get_logger(),
+          "Failed to cancel received from ROS Action Server of %s", ros_action_name_.c_str());
+      }
+    RCLCPP_INFO(ros_node_->get_logger(), "Goal Canceled");
+    future_goal_handle_.reset();
     setStatus(BT::NodeStatus::IDLE);
   }
 
@@ -189,7 +210,7 @@ private:
   ROSActionGoalWrappedResult action_result_;
   std::mutex action_result_mutex_;      // I prefer mutex in this case so I can lock and check
                                         // the action_result_.code
-  std::shared_future<ROSActionGoalHandlePtr> future_goal_handle_;
+  std::shared_ptr<std::shared_future<ROSActionGoalHandlePtr>> future_goal_handle_;
 };
 
 }  // namespace ros2_bt_utils
