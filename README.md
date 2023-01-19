@@ -17,7 +17,7 @@ Package containing the base classes (virtual and templates) to ease the developm
 Clone this repo in your ROS2 workspace
 ```bash 
  cd <your-ws-src>
- git clone https://github.com/miccol/bt_use_cases
+ git clone https://github.com/miccol/ros2_bt_utils
 ```
 Build
 ```bash 
