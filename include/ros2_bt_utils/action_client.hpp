@@ -44,182 +44,177 @@ using std::placeholders::_2;
 
 namespace ros2_bt_utils
 {
-  template <typename ROSActionT>
-  /// @brief The base class of a BT action with name "name" and NodeConfiguration config that
-  /// implements the client side of a ROS Action. Then the BT Node receives tick and halt, it sends
-  /// the corresponding command to the ROS Action server. The derived class must implement the
-  /// methods computeGoal and elaborateFeedback
-  /// @tparam ROSActionT Template of the ROS Action
-  class ActionROSActionClient : public BT::StatefulActionNode
+template<typename ROSActionT>
+/// @brief The base class of a BT action with name "name" and NodeConfiguration config that
+/// implements the client side of a ROS Action. Then the BT Node receives tick and halt, it sends
+/// the corresponding command to the ROS Action server. The derived class must implement the
+/// methods computeGoal and elaborateFeedback
+/// @tparam ROSActionT Template of the ROS Action
+class ActionROSActionClient : public BT::StatefulActionNode
+{
+protected:
+  using ROSActionGoalWrappedResult =
+    typename rclcpp_action::ClientGoalHandle<ROSActionT>::WrappedResult;
+
+  using ROSActionClientPtr = typename rclcpp_action::Client<ROSActionT>::SharedPtr;
+  using ROSActionGoal = typename ROSActionT::Goal;
+  using ROSActionGoalFeedback = typename rclcpp_action::ClientGoalHandle<ROSActionT>::Feedback;
+  using ROSActionGoalHandlePtr =
+    typename rclcpp_action::ClientGoalHandle<ROSActionT>::SharedPtr;
+  using ROSActionGoalFeedbackConstPtr =
+    typename rclcpp_action::ClientGoalHandle<ROSActionT>::Feedback::ConstSharedPtr;
+
+public:
+  ActionROSActionClient(
+    const std::string & name, const BT::NodeConfiguration & config,
+    const std::string & ros_action_name)
+  : BT::StatefulActionNode(name, config), ros_action_name_{ros_action_name}
   {
-  protected:
-    using ROSActionGoalWrappedResult =
-        typename rclcpp_action::ClientGoalHandle<ROSActionT>::WrappedResult;
+    ros_node_ = ros2_bt_utils::ROSNode();
+    server_attached_ = attachServer();
+  }
 
-    using ROSActionClientPtr = typename rclcpp_action::Client<ROSActionT>::SharedPtr;
-    using ROSActionGoal = typename ROSActionT::Goal;
-    using ROSActionGoalFeedback = typename rclcpp_action::ClientGoalHandle<ROSActionT>::Feedback;
-    using ROSActionGoalHandlePtr =
-        typename rclcpp_action::ClientGoalHandle<ROSActionT>::SharedPtr;
-    using ROSActionGoalFeedbackConstPtr =
-        typename rclcpp_action::ClientGoalHandle<ROSActionT>::Feedback::ConstSharedPtr;
-
-  public:
-    ActionROSActionClient(
-        const std::string &name, const BT::NodeConfiguration &config,
-        const std::string &ros_action_name)
-        : BT::StatefulActionNode(name, config), ros_action_name_{ros_action_name}
-    {
-      ros_node_ = ros2_bt_utils::ROSNode();
-      server_attached_ = attachServer();
+protected:
+  /// method invoked by the BT ath the first tick.
+  BT::NodeStatus onStart() override
+  {
+    action_result_.code =
+      rclcpp_action::ResultCode::UNKNOWN;     // reinitialize for future ticks.
+    action_result_ = typename rclcpp_action::ClientGoalHandle<
+      ROSActionT>::WrappedResult();     // reinitialize for future ticks.
+    auto goal_options = typename rclcpp_action::Client<ROSActionT>::SendGoalOptions();
+    goal_options.result_callback =
+      std::bind(&ActionROSActionClient<ROSActionT>::resultCallback, this, _1);
+    goal_options.goal_response_callback =
+      std::bind(&ActionROSActionClient<ROSActionT>::responseCallback, this, _1);
+    goal_options.feedback_callback =
+      std::bind(&ActionROSActionClient<ROSActionT>::feedbackCallback, this, _1, _2);
+    // future_goal_handle_ = action_client_->async_send_goal(computeGoal(), goal_options);
+    future_goal_handle_ = std::make_shared<
+      std::shared_future<typename rclcpp_action::ClientGoalHandle<ROSActionT>::SharedPtr>>(
+      action_client_->async_send_goal(computeGoal(), goal_options));
+    if (goal_rejected_) {
+      RCLCPP_WARN(
+        ros_node_->get_logger(),
+        "Goal was rejected by server but the BT is still ticking the action");
+      return BT::NodeStatus::FAILURE;
     }
+    return actionResultToStatus();
+  }
 
-  protected:
-    /// method invoked by the BT ath the first tick.
-    BT::NodeStatus onStart() override
-    {
-      action_result_.code =
-          rclcpp_action::ResultCode::UNKNOWN; // reinitialize for future ticks.
-      action_result_ = typename rclcpp_action::ClientGoalHandle<
-          ROSActionT>::WrappedResult(); // reinitialize for future ticks.
-      auto goal_options = typename rclcpp_action::Client<ROSActionT>::SendGoalOptions();
-      goal_options.result_callback =
-          std::bind(&ActionROSActionClient<ROSActionT>::resultCallback, this, _1);
-      goal_options.goal_response_callback =
-          std::bind(&ActionROSActionClient<ROSActionT>::responseCallback, this, _1);
-      goal_options.feedback_callback =
-          std::bind(&ActionROSActionClient<ROSActionT>::feedbackCallback, this, _1, _2);
-      // future_goal_handle_ = action_client_->async_send_goal(computeGoal(), goal_options);
-      future_goal_handle_ = std::make_shared<
-          std::shared_future<typename rclcpp_action::ClientGoalHandle<ROSActionT>::SharedPtr>>(
-          action_client_->async_send_goal(computeGoal(), goal_options));
-      if (goal_rejected_)
-      {
-        RCLCPP_WARN(
-            ros_node_->get_logger(),
-            "Goal was rejected by server but the BT is still ticking the action");
-        return BT::NodeStatus::FAILURE;
-      }
-      return actionResultToStatus();
-    }
+  /// method invoked by the tick() while in the RUNNING state.
+  BT::NodeStatus onRunning() override {return actionResultToStatus();}
 
-    /// method invoked by the tick() while in the RUNNING state.
-    BT::NodeStatus onRunning() override { return actionResultToStatus(); }
+  void onHalted() override
+  {
 
-    void onHalted() override
-    {
-
-      auto goal_handle = future_goal_handle_->get();
-      bool goal_executing = goal_handle->get_status() == action_msgs::msg::GoalStatus::STATUS_ACCEPTED || goal_handle->get_status() == action_msgs::msg::GoalStatus::STATUS_ACCEPTED;
-      if (!goal_handle || !goal_executing)
-      {
-        RCLCPP_INFO(ros_node_->get_logger(), "No need to cancel goal");
-        setStatus(BT::NodeStatus::IDLE);
-        return;
-      }
-      RCLCPP_INFO(ros_node_->get_logger(), "Canceling goal");
-      auto cancel_result_future = action_client_->async_cancel_goal(future_goal_handle_->get()); // WIP
-                                                                                                 // action_client_->async_cancel_all_goals();
-      if (rclcpp::spin_until_future_complete(ros_node_, cancel_result_future, std::chrono::seconds(5)) !=
-          rclcpp::FutureReturnCode::SUCCESS)
-      {
-        RCLCPP_ERROR(
-            ros_node_->get_logger(),
-            "Failed to cancel received from ROS Action Server of %s", ros_action_name_.c_str());
-      }
-      RCLCPP_INFO(ros_node_->get_logger(), "Goal Canceled");
-      future_goal_handle_.reset();
+    auto goal_handle = future_goal_handle_->get();
+    bool goal_executing = goal_handle->get_status() ==
+      action_msgs::msg::GoalStatus::STATUS_ACCEPTED ||
+      goal_handle->get_status() == action_msgs::msg::GoalStatus::STATUS_ACCEPTED;
+    if (!goal_handle || !goal_executing) {
+      RCLCPP_INFO(ros_node_->get_logger(), "No need to cancel goal");
       setStatus(BT::NodeStatus::IDLE);
+      return;
     }
-
-  private:
-    /// @brief checks if the result is available. It retunrs FAILURE if the ROS Action is CANCELED
-    /// or ABORTED. If result is available it calls the virtual method elaborateResultAndReturn
-    /// (user-defined)
-    /// @return true if ok. false otherwise.
-    BT::NodeStatus actionResultToStatus()
+    RCLCPP_INFO(ros_node_->get_logger(), "Canceling goal");
+    auto cancel_result_future = action_client_->async_cancel_goal(future_goal_handle_->get());   // WIP
+                                                                                                 // action_client_->async_cancel_all_goals();
+    if (rclcpp::spin_until_future_complete(
+        ros_node_, cancel_result_future,
+        std::chrono::seconds(5)) !=
+      rclcpp::FutureReturnCode::SUCCESS)
     {
-      rclcpp::spin_some(ros_node_);
-      std::lock_guard<std::mutex> guard(action_result_mutex_);
-      if (action_result_.code == rclcpp_action::ResultCode::SUCCEEDED)
-      {
-        return elaborateResultAndReturn(action_result_);
-      }
-      else if (action_result_.code == rclcpp_action::ResultCode::ABORTED ||
-               action_result_.code == rclcpp_action::ResultCode::CANCELED)
-      {
-        RCLCPP_ERROR(
-            ros_node_->get_logger(),
-            "Action canceled or aborted in the ROS Action Server %s",
-            ros_action_name_.c_str());
-        return BT::NodeStatus::FAILURE;
-      }
-
-      return BT::NodeStatus::RUNNING;
+      RCLCPP_ERROR(
+        ros_node_->get_logger(),
+        "Failed to cancel received from ROS Action Server of %s", ros_action_name_.c_str());
     }
+    RCLCPP_INFO(ros_node_->get_logger(), "Goal Canceled");
+    future_goal_handle_.reset();
+    setStatus(BT::NodeStatus::IDLE);
+  }
 
-    /// @brief Attach the node to the ros action server
-    /// @return true if ok. false otherwise.
-    bool attachServer()
+private:
+  /// @brief checks if the result is available. It retunrs FAILURE if the ROS Action is CANCELED
+  /// or ABORTED. If result is available it calls the virtual method elaborateResultAndReturn
+  /// (user-defined)
+  /// @return true if ok. false otherwise.
+  BT::NodeStatus actionResultToStatus()
+  {
+    rclcpp::spin_some(ros_node_);
+    std::lock_guard<std::mutex> guard(action_result_mutex_);
+    if (action_result_.code == rclcpp_action::ResultCode::SUCCEEDED) {
+      return elaborateResultAndReturn(action_result_);
+    } else if (action_result_.code == rclcpp_action::ResultCode::ABORTED ||
+      action_result_.code == rclcpp_action::ResultCode::CANCELED)
     {
-      if (!ros_node_)
-      {
-        return false;
-      }
-      action_client_ =
-          rclcpp_action::create_client<ROSActionT>(ros_node_, ros_action_name_.c_str());
-      if (!action_client_->wait_for_action_server(std::chrono::seconds(60)))
-      {
-        auto node = ros2_bt_utils::ROSNode();
-        RCLCPP_ERROR(
-            ros_node_->get_logger(), "Timed out connecting to ROS Action Server %s",
-            ros_action_name_.c_str());
-        return false;
-      }
-      return true;
+      RCLCPP_ERROR(
+        ros_node_->get_logger(),
+        "Action canceled or aborted in the ROS Action Server %s",
+        ros_action_name_.c_str());
+      return BT::NodeStatus::FAILURE;
     }
 
-    void resultCallback(const ROSActionGoalWrappedResult &result)
-    {
-      std::lock_guard<std::mutex> guard(action_result_mutex_);
-      action_result_ = result;
+    return BT::NodeStatus::RUNNING;
+  }
+
+  /// @brief Attach the node to the ros action server
+  /// @return true if ok. false otherwise.
+  bool attachServer()
+  {
+    if (!ros_node_) {
+      return false;
     }
-
-    void responseCallback(ROSActionGoalHandlePtr future)
-    {
-      auto goal_handle = future.get();
-      if (!goal_handle)
-      {
-        goal_rejected_ = true;
-        RCLCPP_ERROR(ros_node_->get_logger(), "Goal was rejected by server");
-      }
-      else
-      {
-        goal_rejected_ = false;
-      }
+    action_client_ =
+      rclcpp_action::create_client<ROSActionT>(ros_node_, ros_action_name_.c_str());
+    if (!action_client_->wait_for_action_server(std::chrono::seconds(60))) {
+      auto node = ros2_bt_utils::ROSNode();
+      RCLCPP_ERROR(
+        ros_node_->get_logger(), "Timed out connecting to ROS Action Server %s",
+        ros_action_name_.c_str());
+      return false;
     }
+    return true;
+  }
 
-    void feedbackCallback(ROSActionGoalHandlePtr, ROSActionGoalFeedbackConstPtr feedback)
-    {
-      elaborateFeedback(feedback);
+  void resultCallback(const ROSActionGoalWrappedResult & result)
+  {
+    std::lock_guard<std::mutex> guard(action_result_mutex_);
+    action_result_ = result;
+  }
+
+  void responseCallback(ROSActionGoalHandlePtr future)
+  {
+    auto goal_handle = future.get();
+    if (!goal_handle) {
+      goal_rejected_ = true;
+      RCLCPP_ERROR(ros_node_->get_logger(), "Goal was rejected by server");
+    } else {
+      goal_rejected_ = false;
     }
+  }
 
-  protected:
-    virtual ROSActionGoal computeGoal() = 0;
-    virtual void elaborateFeedback(const ROSActionGoalFeedbackConstPtr feedback) = 0;
-    virtual BT::NodeStatus elaborateResultAndReturn(const ROSActionGoalWrappedResult result) = 0;
+  void feedbackCallback(ROSActionGoalHandlePtr, ROSActionGoalFeedbackConstPtr feedback)
+  {
+    elaborateFeedback(feedback);
+  }
 
-  private:
-    bool server_attached_{false};
-    std::string ros_action_name_;
-    ROSActionClientPtr action_client_;
-    rclcpp::Node::SharedPtr ros_node_;
-    bool goal_rejected_{false};
-    ROSActionGoalWrappedResult action_result_;
-    std::mutex action_result_mutex_; // I prefer mutex in this case so I can lock and check
+protected:
+  virtual ROSActionGoal computeGoal() = 0;
+  virtual void elaborateFeedback(const ROSActionGoalFeedbackConstPtr feedback) = 0;
+  virtual BT::NodeStatus elaborateResultAndReturn(const ROSActionGoalWrappedResult result) = 0;
+
+private:
+  bool server_attached_{false};
+  std::string ros_action_name_;
+  ROSActionClientPtr action_client_;
+  rclcpp::Node::SharedPtr ros_node_;
+  bool goal_rejected_{false};
+  ROSActionGoalWrappedResult action_result_;
+  std::mutex action_result_mutex_;   // I prefer mutex in this case so I can lock and check
                                      // the action_result_.code
-    std::shared_ptr<std::shared_future<ROSActionGoalHandlePtr>> future_goal_handle_;
-  };
+  std::shared_ptr<std::shared_future<ROSActionGoalHandlePtr>> future_goal_handle_;
+};
 
 } // namespace ros2_bt_utils
 
